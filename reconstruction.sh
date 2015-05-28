@@ -33,7 +33,9 @@ function printCommandLine {
     exit 1
 }
 
-
+#defaults
+skipSlicesDir=0
+clobber=0
 while getopts “h:l:i:v:o:S:dc” OPTION
 do
     case $OPTION in
@@ -107,7 +109,7 @@ for sub in `ls ${rawDir}`; do
     
     echo "sub${name} is being converted from directory ${sub} in ${rawDir}" >> preprocessing.log
     #see if subject has already been run
-    if [ ${clobber} -eq 1 ]; then
+    if [[ ${clobber} -eq 1 ]]; then
     	completed=0
     else
    		completed=`awk -F"," '($2=="'"${sub}"'") {print $(NF)}' tmp_scanLog.csv`
@@ -174,10 +176,6 @@ for sub in `ls ${rawDir}`; do
 		echo -e "\n" >> preprocessing.log
 		echo "sub${name}: Finding ${scan}" >> preprocessing.log
 
-		#make the directories necessary in preProcDataDir 
-		#notice the ${cond}${scan} adjacency without a '/'
-		#this is because cond has the following '/' automatically inserted
-		mkdir -p ${preProcDataDir}/sub${name}/${cond}${scan}/Raw
 		
 
 		#Get the number of Dicoms that are supposed to be in the Dicom folder
@@ -199,6 +197,9 @@ for sub in `ls ${rawDir}`; do
 		    #Get the number of Dicoms in the subject's scan directory
 		    dicom_num=`ls ${sub_scan_folder}/resources/DICOM/files/*.dcm | wc -w`
 		    
+		    #reinitialize correct_dir so that if a correct dir isn't found, the answer from the last iteration of the loop isn't used.
+		    correct_dir=""
+
 		    #Compare the subject Dicom number to the number of Dicoms that are supposed to be in the file
 		    if [ ! ${dicom_num} -eq ${scanVol_num} ]; then
 			echo "Error: the number of DICOMs in ${sub_scan_folder} directory for sub${name} do not match the number specified by ${scanVol}"
@@ -230,6 +231,11 @@ for sub in `ls ${rawDir}`; do
 
 		echo "CONVERTING DICOMS FROM ${correct_dir} FOR sub${name}" >> preprocessing.log
 
+		#make the directories necessary in preProcDataDir 
+		#notice the ${cond}${scan} adjacency without a '/'
+		#this is because cond has the following '/' automatically inserted
+		mkdir -p ${preProcDataDir}/sub${name}/${cond}${scan}/Raw
+		
 		
 		#Special processing for DTI images to get bvals and bvecs
 	####################################################################
@@ -505,7 +511,7 @@ for sub in `ls ${rawDir}`; do
 		#if [ "${scan_type}" == "epfid2d1_64" ]; then
 
 		#May wish to use previous check instead of the one below
-		if [ ${tr} -gt 1500 ] && [ ${tr} -lt 2500 ] && [ ${te} -lt 50 ]; then
+		if [[ ${tr} -gt 1500 ]] && [[ ${tr} -lt 3000 ]] && [[ ${te} -lt 50 ]] && [[ "${scan_type}" == "epfid2d1_64" ]]; then
 		    
 			#note move everything into the motion directory
 		    if [ -e ${preProcDataDir}/sub${name}/${cond}${scan}/motion ]; then
@@ -514,11 +520,11 @@ for sub in `ls ${rawDir}`; do
 
 		    mkdir -p ${preProcDataDir}/{Func_Motion_Check,sub${name}/${cond}${scan}/motion}
 			 #Determine halfway point of dataset to use as a target for registration
-		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
+		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_MNI.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
 		    
 			#Run 3dvolreg, save matrices and parameters
 	      #Saving "raw" AFNI output for possible use later (motionscrubbing?)
-		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_MNI.nii.gz
 
 	     #Create a mean volume
 		    fslmaths ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -Tmean ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImgMean.nii.gz
@@ -603,13 +609,13 @@ for sub in `ls ${rawDir}`; do
 done #Done with all the subjects
 
 #Make .html files for easy viewing of scans to check for FOV
-if [ ! ${skipSlicesDir} -eq 1 ]; then
+if [[ ! ${skipSlicesDir} -eq 1 ]]; then
 for scan in ${scans}; do
     #use slicesdir on all subjects in all conditions
     if [ -e ${preProcDataDir}/slicesdir_${scan} ]; then
 	rm -rf ${preProcDataDir}/slicesdir_${scan} 
     fi
-    slicesdir ${preProcDataDir}/sub*/*/${scan}/*_${scan}.nii.gz
+    slicesdir ${preProcDataDir}/sub*/*/${scan}/*_${scan}_MNI.nii.gz
     mv slicesdir slicesdir_${scan}
     mv -f slicesdir_${scan} ${preProcDataDir}
 done
@@ -641,4 +647,4 @@ fi
 #cat tmp_scanLog.csv
 ################################################
 
- #   cond=`awk -F"," '($2=="'"${sub}"'") && ($(\NF)==0) {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/'`        
+ #   cond=`awk -F"," '($2=="'"${sub}"'") && ($(\NF)==0) {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/'`
