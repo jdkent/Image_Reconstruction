@@ -192,14 +192,15 @@ for sub in `ls ${rawDir}`; do
 		#(i.e. if there exists 9-DTI and 10-DTI)
 		x=0
 		
+		#reinitialize correct_dir so that if a correct dir isn't found, the answer from the last iteration of the loop isn't used.
+		   correct_dir=""
+
 		#Have a for loop even if there is only one scan directory for the subject
 		for sub_scan_folder in ${sub_scan_folders}; do
 		    #Get the number of Dicoms in the subject's scan directory
 		    dicom_num=`ls ${sub_scan_folder}/resources/DICOM/files/*.dcm | wc -w`
 		    
-		    #reinitialize correct_dir so that if a correct dir isn't found, the answer from the last iteration of the loop isn't used.
-		    correct_dir=""
-
+		   
 		    #Compare the subject Dicom number to the number of Dicoms that are supposed to be in the file
 		    if [ ! ${dicom_num} -eq ${scanVol_num} ]; then
 			echo "Error: the number of DICOMs in ${sub_scan_folder} directory for sub${name} do not match the number specified by ${scanVol}"
@@ -246,7 +247,7 @@ for sub in `ls ${rawDir}`; do
 		    if [ `ls ${preProcDataDir}/sub${name}/${cond}${scan}/ | wc -l` -gt 1 ]; then
 			rm -f ${preProcDataDir}/sub${name}/${cond}${scan}/*.*
 		    fi
-		    dcm2nii -g y -o ${preProcDataDir}/sub${name}/${cond}${scan}/ ${correct_dir}/resources/DICOM/files/*.dcm >> preprocessing.log
+		    dcm2niix -z y -o ${preProcDataDir}/sub${name}/${cond}${scan}/ ${correct_dir}/resources/DICOM/files/*.dcm >> preprocessing.log
 		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bval
 		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bvec
 		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
