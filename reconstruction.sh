@@ -2,7 +2,14 @@
 
 #Assumption:
 #1) the excel files (.csv) are filled out and have the appropiate information
-#2) this script is dependent on fslreorient.sh, please have that script in the same directory for this script to work.
+#2) The following software packages/commands are accessible in $PATH
+	#AFNI
+	#FSL
+	#dcm2niix
+	#freesurfer
+
+
+
 function printCommandLine {
     echo "Usage: reconstruction.sh -i XNAT Folder Directory -o Preprocessed Directory -l scanLog (.csv) -v scanVol (.csv) -S userScanList (optional) -c clobber (optional)"
     echo " where:"
@@ -36,6 +43,42 @@ function printCommandLine {
 #defaults
 skipSlicesDir=0
 clobber=0
+
+
+
+#explicit checks for software
+afni_check=$(which afni)
+fsl_check=$(which fsl)
+freesurfer_check=$(which freesurfer)
+dcm2niix_check=$(which dcm2niix)
+
+if [ ${afni_check} == "" ]; then
+	echo "afni is missing from your path or is not installed on this computer, exiting"
+	exit 1
+fi
+
+if [ ${fsl_check} == "" ]; then
+	echo "fsl is missing from your path or is not installed on this computer, exiting"
+	exit 1
+fi
+
+if [ ${freesurfer_check} == "" ]; then
+	echo "freesurfer is missing from your path or is not installed on this computer, exiting"
+	exit 1
+fi
+
+if [ ${dcm2niix_check} == "" ]; then
+	echo "dcm2niix is missing from your path or is not installed on this computer"
+	echo "You won't reconstruct DTI correctly, do you still want to continue? [y/n]"
+	read -t 10 ans
+	if [ "${ans}" == "n" ]; then
+		exit 1
+	else 
+		echo "continuing..."
+	fi
+fi
+
+
 while getopts “h:l:i:v:o:S:dc” OPTION
 do
     case $OPTION in
@@ -98,12 +141,12 @@ fi
 #Begin Subject Iteration
 ####################################################
 #for the subjects in the Raw files Directory
-for sub in `ls ${rawDir}`; do
+for sub in $(ls ${rawDir}); do
 
     echo "#######################################" >> preprocessing.log
 
     #get the subID from the raw folder name
-    name=`awk -F"," '($2=="'"${sub}"'") {print $1}' tmp_scanLog.csv`
+    name=$(awk -F"," '($2=="'"${sub}"'") {print $1}' tmp_scanLog.csv)
     #list the condition(s) the subject scans are for (i.e. Active/pre)
    
     
@@ -112,7 +155,7 @@ for sub in `ls ${rawDir}`; do
     if [[ ${clobber} -eq 1 ]]; then
     	completed=0
     else
-   		completed=`awk -F"," '($2=="'"${sub}"'") {print $(NF)}' tmp_scanLog.csv`
+   		completed=$(awk -F"," '($2=="'"${sub}"'") {print $(NF)}' tmp_scanLog.csv)
 	fi
 
     #check the output from completed, which can either be:
@@ -123,7 +166,7 @@ for sub in `ls ${rawDir}`; do
 	1)
 	    #the condition(s) that has already been completed.
 	    #maybe print wrong condition (and/or not complete condition) if a subject has more than 2 scans.
-	    cond=`awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/'`
+	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/')
 	    echo "${sub}, which corresponds to ${name} for condition ${cond}, has already been preprocessed"
 	    echo "Processed: YES" >> preprocessing.log
 	    echo "Skipping sub${sub}" >> preprocessing.log
@@ -192,7 +235,7 @@ for sub in `ls ${rawDir}`; do
 		#(i.e. if there exists 9-DTI and 10-DTI)
 		x=0
 		
-		#reinitialize correct_dir so that if a correct dir isn't found, the answer from the last iteration of the loop isn't used.
+		#reinitialize correct_dir so that if a correct dir isn't found, the answer from the last iteration of the loop (for scan in ${scans}) isn't used.
 		   correct_dir=""
 
 		#Have a for loop even if there is only one scan directory for the subject
@@ -245,12 +288,17 @@ for sub in `ls ${rawDir}`; do
 		    echo "OUTPUT FROM dcm2nii:" >> preprocessing.log
 
 		    if [ `ls ${preProcDataDir}/sub${name}/${cond}${scan}/ | wc -l` -gt 1 ]; then
-			rm -f ${preProcDataDir}/sub${name}/${cond}${scan}/*.*
+				rm -f ${preProcDataDir}/sub${name}/${cond}${scan}/*.*
 		    fi
 		    dcm2niix -z y -o ${preProcDataDir}/sub${name}/${cond}${scan}/ ${correct_dir}/resources/DICOM/files/*.dcm >> preprocessing.log
-		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bval
-		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bvec
-		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		    if [ ! -e ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ] || [ ! -e ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ]; then
+		    	echo "WARNING: either/both bvecs or/and bvals not reconstructed, assuming the dataset is just B0s"
+		    	mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		    else
+			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bval
+			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bvec
+			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+			fi
 	       #Special processing for DTI images complete
 	####################################################################
 	        else
@@ -461,22 +509,22 @@ for sub in `ls ${rawDir}`; do
 
 
 			  #Reorienting image and checking for warning messages
-			  warnFlag=`fslswapdim ${infile} ${flipFlag} ${infile%.nii.gz}_MNI.nii.gz`
+			  warnFlag=`fslswapdim ${infile} ${flipFlag} ${infile%.nii.gz}_RPI.nii.gz`
 			  warnFlagCut=`echo ${warnFlag} | awk -F":" '{print $1}'`
 
 
 			  #Reorienting the file may require swapping out the flag orientation to match the .img block
 			  if [[ $warnFlagCut == "WARNING" ]]; then
-				fslorient -swaporient ${infile%.nii.gz}_MNI.nii.gz
+				fslorient -swaporient ${infile%.nii.gz}_RPI.nii.gz
 			  fi
 
 			else
 
 			  echo "No need to reorient.  Dataset already in RPI orientation."
 
-			  if [ ! -e ${infile%.nii.gz}_MNI.nii.gz ]; then
+			  if [ ! -e ${infile%.nii.gz}_RPI.nii.gz ]; then
 
-			    cp ${infile} ${infile%.nii.gz}_MNI.nii.gz
+			    cp ${infile} ${infile%.nii.gz}_RPI.nii.gz
 
 			  fi
 
@@ -501,10 +549,19 @@ for sub in `ls ${rawDir}`; do
 		#answer to note: use repetition times and echo times to identify functional scans
 		#repetition time
 		tr=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep Repetition\ Time | awk -F"//" '{print $3}')
+
+		#Scans used to use milliseconds, but now use seconds, changing back to milliseconds
+		if [[ ${tr} = *\.* ]]; then
+			tr=$((${tr}*1000))
+		fi
 		#echo time
 		te=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep Echo\ Time | awk -F"//" '{print $3}')
-		echo "the repetition time is ${tr}"
-		echo "the echo time is ${te}"
+		if [[ ${te} = *\.* ]]; then
+			te=$((${te}*1000))
+		fi
+
+		echo "the repetition time is ${tr}ms"
+		echo "the echo time is ${te}ms"
 
 
 		#Or I can use the scan sequence?
@@ -521,11 +578,11 @@ for sub in `ls ${rawDir}`; do
 
 		    mkdir -p ${preProcDataDir}/{Func_Motion_Check,sub${name}/${cond}${scan}/motion}
 			 #Determine halfway point of dataset to use as a target for registration
-		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_MNI.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
+		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_RPI.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
 		    
 			#Run 3dvolreg, save matrices and parameters
 	      #Saving "raw" AFNI output for possible use later (motionscrubbing?)
-		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_MNI.nii.gz
+		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_RPI.nii.gz
 
 	     #Create a mean volume
 		    fslmaths ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -Tmean ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImgMean.nii.gz
@@ -616,7 +673,7 @@ for scan in ${scans}; do
     if [ -e ${preProcDataDir}/slicesdir_${scan} ]; then
 	rm -rf ${preProcDataDir}/slicesdir_${scan} 
     fi
-    slicesdir ${preProcDataDir}/sub*/*/${scan}/*_${scan}_MNI.nii.gz
+    slicesdir ${preProcDataDir}/sub*/*/${scan}/*_${scan}_RPI.nii.gz
     mv slicesdir slicesdir_${scan}
     mv -f slicesdir_${scan} ${preProcDataDir}
 done
