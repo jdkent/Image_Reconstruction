@@ -226,7 +226,7 @@ for sub in $(ls ${rawDir}); do
 		scanVol_num=$(awk -F"," '($1=="'"${scan}"'") {print $2}' tmp_scanVol.csv)
 
 		#In case you have multiple scans of the same type that you want to keep
-		scan_strip=${scan%_*}
+		scan_strip=${scan%-*}
 		#Find the scan Directory in the Raw Folders for the subject
 		sub_scan_folders=$(find $rawDir/${sub} -name *${scan_strip})
 
@@ -241,7 +241,7 @@ for sub in $(ls ${rawDir}); do
 		#Have a for loop even if there is only one scan directory for the subject
 		for sub_scan_folder in ${sub_scan_folders}; do
 		    #Get the number of Dicoms in the subject's scan directory
-		    dicom_num=`ls ${sub_scan_folder}/resources/DICOM/files/*.dcm | wc -w`
+		    dicom_num=$(ls ${sub_scan_folder}/resources/DICOM/files/*.dcm | wc -w)
 		    
 		   
 		    #Compare the subject Dicom number to the number of Dicoms that are supposed to be in the file
@@ -552,12 +552,13 @@ for sub in $(ls ${rawDir}); do
 
 		#Scans used to use milliseconds, but now use seconds, changing back to milliseconds
 		if [[ ${tr} = *\.* ]]; then
-			tr=$((${tr}*1000))
+			tr=$(echo "scale=0; ${te}*1000" | bc | xargs -I {} printf %.0f {})
 		fi
 		#echo time
 		te=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep Echo\ Time | awk -F"//" '{print $3}')
 		if [[ ${te} = *\.* ]]; then
-			te=$((${te}*1000))
+			#te=$((${te}*1000)) math doesn't work here
+			te=$(echo "scale=0; ${te}*1000" | bc | xargs -I {} printf %.0f {})
 		fi
 
 		echo "the repetition time is ${tr}ms"
