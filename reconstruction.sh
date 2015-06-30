@@ -52,22 +52,22 @@ fsl_check=$(which fsl)
 freesurfer_check=$(which freesurfer)
 dcm2niix_check=$(which dcm2niix)
 
-if [ ${afni_check} == "" ]; then
+if [ "${afni_check}" == "" ]; then
 	echo "afni is missing from your path or is not installed on this computer, exiting"
 	exit 1
 fi
 
-if [ ${fsl_check} == "" ]; then
+if [ "${fsl_check}" == "" ]; then
 	echo "fsl is missing from your path or is not installed on this computer, exiting"
 	exit 1
 fi
 
-if [ ${freesurfer_check} == "" ]; then
+if [ "${freesurfer_check}" == "" ]; then
 	echo "freesurfer is missing from your path or is not installed on this computer, exiting"
 	exit 1
 fi
 
-if [ ${dcm2niix_check} == "" ]; then
+if [ "${dcm2niix_check}" == "" ]; then
 	echo "dcm2niix is missing from your path or is not installed on this computer"
 	echo "You won't reconstruct DTI correctly, do you still want to continue? [y/n]"
 	read -t 10 ans
