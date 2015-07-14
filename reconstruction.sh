@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 #Assumption:
 #1) the excel files (.csv) are filled out and have the appropiate information
