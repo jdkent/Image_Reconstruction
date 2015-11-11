@@ -150,7 +150,7 @@ for sub in $(ls ${rawDir}); do
     #list the condition(s) the subject scans are for (i.e. Active/pre)
    
     
-    echo "sub${name} is being converted from directory ${sub} in ${rawDir}" >> preprocessing.log
+    echo "${cond}_sub${name} is being converted from directory ${sub} in ${rawDir}" >> preprocessing.log
     #see if subject has already been run
     if [[ ${clobber} -eq 1 ]]; then
     	completed=0
@@ -166,7 +166,7 @@ for sub in $(ls ${rawDir}); do
 	1)
 	    #the condition(s) that has already been completed.
 	    #maybe print wrong condition (and/or not complete condition) if a subject has more than 2 scans.
-	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/')
+	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv)
 	    echo "${sub}, which corresponds to ${name} for condition ${cond}, has already been preprocessed"
 	    echo "Processed: YES" >> preprocessing.log
 	    echo "Skipping sub${sub}" >> preprocessing.log
@@ -174,10 +174,10 @@ for sub in $(ls ${rawDir}); do
 	    ;;
 	0)
 	    #probably dont need '&& ($(\NF)==0)', but I am using it as a double check
-	    cond=`awk -F"," '($2=="'"${sub}"'") && ($(NF)==0) {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/'`
-	    echo "running ${sub} which corresponds to ${name}"
+	    cond=$(awk -F"," '($2=="'"${sub}"'") && ($(NF)==0) {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv)
+	    echo "running ${sub} which corresponds to ${cond}_sub${name}"
 	    echo "Processed: NO" >> preprocessing.log
-	    echo "Processing sub${name}" >> preprocessing.log 
+	    echo "Processing ${cond}_sub${name}" >> preprocessing.log 
 	    ;;
 	?)
 	    echo "${sub} does not exist in ${scanLog} or is formatted incorrectly"
@@ -199,18 +199,18 @@ for sub in $(ls ${rawDir}); do
 		#check to see if the reconstructed scan already exists
 		#Default behavior is to skip the scan if the user does not provide input
 		
-		if [ -e ${preProcDataDir}/sub${name}/${cond}/${scan}/sub${name}_${scan}.nii.gz ]; then
-		    echo "${scan} exists for sub${name}, do you want to overwrite? yes/no"
+		if [ -e ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz ]; then
+		    echo "${scan} exists for ${cond}_sub${name}, do you want to overwrite? yes/no"
 		    read -t 10 ans
 		    if [ "${ans}" == "yes" ]; then
 			echo "rewriting scan ${scan}..."
 		    elif [ "${ans}" == "no" ]; then
 			echo "skipping scan ${scan}"
-			echo "SKIPPING ${scan} for sub${name}" >> preprocessing.log
+			echo "SKIPPING ${scan} for ${cond}_sub${name}" >> preprocessing.log
 			continue
 		    else
 			echo "skipping scan ${scan}"
-			echo "SKIPPING ${scan} for sub${name}" >> preprocessing.log
+			echo "SKIPPING ${scan} for ${cond}_sub${name}" >> preprocessing.log
 			continue
 		    fi
 		fi
@@ -246,7 +246,7 @@ for sub in $(ls ${rawDir}); do
 		   
 		    #Compare the subject Dicom number to the number of Dicoms that are supposed to be in the file
 		    if [ ! ${dicom_num} -eq ${scanVol_num} ]; then
-			echo "Error: the number of DICOMs in ${sub_scan_folder} directory for sub${name} do not match the number specified by ${scanVol}"
+			echo "Error: the number of DICOMs in ${sub_scan_folder} directory for ${cond}_sub${name} do not match the number specified by ${scanVol}"
 			echo "Number Found: ${dicom_num}"
 			echo "Number Needed: ${scanVol_num}"
 			echo "${sub_scan_folder}: INCORRECT DICOMS" >> preprocessing.log
@@ -273,12 +273,12 @@ for sub in $(ls ${rawDir}); do
 		    continue 
 		fi
 
-		echo "CONVERTING DICOMS FROM ${correct_dir} FOR sub${name}" >> preprocessing.log
+		echo "CONVERTING DICOMS FROM ${correct_dir} FOR ${cond}_sub${name}" >> preprocessing.log
 
 		#make the directories necessary in preProcDataDir 
-		#notice the ${cond}${scan} adjacency without a '/'
+		#notice the ${cond}/${scan} adjacency without a '/'
 		#this is because cond has the following '/' automatically inserted
-		mkdir -p ${preProcDataDir}/sub${name}/${cond}${scan}/Raw
+		mkdir -p ${preProcDataDir}/sub${name}/${cond}/${scan}/Raw
 		
 		
 		#Special processing for DTI images to get bvals and bvecs
@@ -287,17 +287,17 @@ for sub in $(ls ${rawDir}); do
 		if [ "${scan_strip}" == "DTI" ]; then
 		    echo "OUTPUT FROM dcm2nii:" >> preprocessing.log
 
-		    if [ `ls ${preProcDataDir}/sub${name}/${cond}${scan}/ | wc -l` -gt 1 ]; then
-				rm -f ${preProcDataDir}/sub${name}/${cond}${scan}/*.*
+		    if [ `ls ${preProcDataDir}/sub${name}/${cond}/${scan}/ | wc -l` -gt 1 ]; then
+				rm -f ${preProcDataDir}/sub${name}/${cond}/${scan}/*.*
 		    fi
-		    dcm2niix -z y -o ${preProcDataDir}/sub${name}/${cond}${scan}/ ${correct_dir}/resources/DICOM/files/*.dcm >> preprocessing.log
-		    if [ ! -e ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ] || [ ! -e ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ]; then
+		    dcm2niix -z y -o ${preProcDataDir}/sub${name}/${cond}/${scan}/ ${correct_dir}/resources/DICOM/files/*.dcm >> preprocessing.log
+		    if [ ! -e ${preProcDataDir}/sub${name}/${cond}/${scan}/*.bval ] || [ ! -e ${preProcDataDir}/sub${name}/${cond}/${scan}/*.bvec ]; then
 		    	echo "WARNING: either/both bvecs or/and bvals not reconstructed, assuming the dataset is just B0s"
-		    	mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		    	mv ${preProcDataDir}/sub${name}/${cond}/${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz
 		    else
-			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bval ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bval
-			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.bvec ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.bvec
-			    mv ${preProcDataDir}/sub${name}/${cond}${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+			    mv ${preProcDataDir}/sub${name}/${cond}/${scan}/*.bval ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.bval
+			    mv ${preProcDataDir}/sub${name}/${cond}/${scan}/*.bvec ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.bvec
+			    mv ${preProcDataDir}/sub${name}/${cond}/${scan}/*.nii.gz ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz
 			fi
 	       #Special processing for DTI images complete
 	####################################################################
@@ -313,16 +313,16 @@ for sub in $(ls ${rawDir}); do
 		    echo "OUTPUT FROM mri_convert:" >> preprocessing.log
 
 			#remove any files if they exist in the directory
-		    if [ `ls ${preProcDataDir}/sub${name}/${cond}${scan}/ | wc -l` -gt 1  ]; then
-			rm -f ${preProcDataDir}/sub${name}/${cond}${scan}/*.*
+		    if [ `ls ${preProcDataDir}/sub${name}/${cond}/${scan}/ | wc -l` -gt 1  ]; then
+			rm -f ${preProcDataDir}/sub${name}/${cond}/${scan}/*.*
 		    fi
-		    mri_convert -it siemens_dicom -ot nii ${DICOM_FILE_EX} ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz >> preprocessing.log	
+		    mri_convert -it siemens_dicom -ot nii ${DICOM_FILE_EX} ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz >> preprocessing.log	
 		fi
 
 		     #change orientation of image to what we use
 		     #ORIENTATION CODE HERE
 		     ############################################################
-		     infile=${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		     infile=${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz
 		     #Determine qform-orientation to properly reorient file to RPI (MNI) orientation
 			xorient=`fslhd ${infile} | grep "^qform_xorient" | awk '{print $2}' | cut -c1`
 			yorient=`fslhd ${infile} | grep "^qform_yorient" | awk '{print $2}' | cut -c1`
@@ -533,8 +533,8 @@ for sub in $(ls ${rawDir}); do
 
 			#Output should now be in RPI orientation and ready for analysis
 
-		     #fslreorient.sh ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
-	        #mv ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_MNI.nii.gz ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}.nii.gz
+		     #fslreorient.sh ${preProcDataDir}/sub${name}/${cond}/${scan}/sub${name}_${scan}.nii.gz
+	        #mv ${preProcDataDir}/sub${name}/${cond}/${scan}/sub${name}_${scan}_MNI.nii.gz ${preProcDataDir}/sub${name}/${cond}/${scan}/sub${name}_${scan}.nii.gz
 	        #############################################################
 	        #END ORIENTATION CODE
 
@@ -548,14 +548,14 @@ for sub in $(ls ${rawDir}); do
 		
 		#answer to note: use repetition times and echo times to identify functional scans
 		#repetition time
-		tr=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep Repetition\ Time | awk -F"//" '{print $3}')
+		tr=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}/${scan}/Raw/*.dcm | head -n 1) | grep Repetition\ Time | awk -F"//" '{print $3}')
 
 		#Scans used to use milliseconds, but now use seconds, changing back to milliseconds
 		if [[ ${tr} = *\.* ]]; then
 			tr=$(echo "scale=0; ${te}*1000" | bc | xargs -I {} printf %.0f {})
 		fi
 		#echo time
-		te=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep Echo\ Time | awk -F"//" '{print $3}')
+		te=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}/${scan}/Raw/*.dcm | head -n 1) | grep Echo\ Time | awk -F"//" '{print $3}')
 		if [[ ${te} = *\.* ]]; then
 			#te=$((${te}*1000)) math doesn't work here
 			te=$(echo "scale=0; ${te}*1000" | bc | xargs -I {} printf %.0f {})
@@ -566,27 +566,27 @@ for sub in $(ls ${rawDir}); do
 
 
 		#Or I can use the scan sequence?
-		scan_type=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}${scan}/Raw/*.dcm | head -n 1) | grep -o epfid2d1_64)
+		scan_type=$(dicom_hdr $(ls ${preProcDataDir}/sub${name}/${cond}/${scan}/Raw/*.dcm | head -n 1) | grep -o epfid2d1_64)
 		#if [ "${scan_type}" == "epfid2d1_64" ]; then
 
 		#May wish to use previous check instead of the one below
 		if [[ ${tr} -gt 1500 ]] && [[ ${tr} -lt 3000 ]] && [[ ${te} -lt 50 ]] && [[ "${scan_type}" == "epfid2d1_64" ]]; then
 		    
 			#note move everything into the motion directory
-		    if [ -e ${preProcDataDir}/sub${name}/${cond}${scan}/motion ]; then
-			rm -rf  ${preProcDataDir}/sub${name}/${cond}${scan}/motion
+		    if [ -e ${preProcDataDir}/sub${name}/${cond}/${scan}/motion ]; then
+			rm -rf  ${preProcDataDir}/sub${name}/${cond}/${scan}/motion
 		    fi
 
-		    mkdir -p ${preProcDataDir}/{Func_Motion_Check,sub${name}/${cond}${scan}/motion}
+		    mkdir -p ${preProcDataDir}/{Func_Motion_Check,sub${name}/${cond}/${scan}/motion}
 			 #Determine halfway point of dataset to use as a target for registration
-		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_RPI.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
+		    halfPoint=`fslhd ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}_RPI.nii.gz | grep "^dim4" | awk '{print int($2/2)}'`
 		    
 			#Run 3dvolreg, save matrices and parameters
 	      #Saving "raw" AFNI output for possible use later (motionscrubbing?)
-		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}${scan}/sub${name}_${scan}_RPI.nii.gz
+		    3dvolreg -verbose -tshift 0 -Fourier -zpad 4 -prefix ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.nii.gz -base $halfPoint -dfile ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_raw.par -1Dmatrix_save ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.mat ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}_RPI.nii.gz
 
 	     #Create a mean volume
-		    fslmaths ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.nii.gz -Tmean ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImgMean.nii.gz
+		    fslmaths ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.nii.gz -Tmean ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImgMean.nii.gz
 
 	     #Save out mcImg.par (like fsl) with only the translations and rotations
 	      #mcflirt appears to have a different rotation/translation order.  Reorder 3dvolreg output to match "RPI" FSL ordering
@@ -598,13 +598,13 @@ for sub in $(ls ${rawDir}); do
 		#dL  = displacement in the Left direction      } mm
 		#dP  = displacement in the Posterior direction }
 
-		    cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_raw.par | awk '{print ($3 " " $4 " " $2 " " $6 " " $7 " " $5)}' >> ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_deg.par
+		    cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_raw.par | awk '{print ($3 " " $4 " " $2 " " $6 " " $7 " " $5)}' >> ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_deg.par
 
 	    #Need to convert rotational parameters from degrees to radians
 	      #rotRad= (rotDeg*pi)/180
 		#pi=3.14159
 
-		    cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_deg.par | awk -v pi=3.14159 '{print (($1*pi)/180) " " (($2*pi)/180) " " (($3*pi)/180) " " $4 " " $5 " " $6}' > ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par
+		    cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_deg.par | awk -v pi=3.14159 '{print (($1*pi)/180) " " (($2*pi)/180) " " (($3*pi)/180) " " $4 " " $5 " " $6}' > ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par
 
 
 	    #Need to create a version where ALL (rotations and translations) measurements are in mm.  Going by Power 2012 Neuroimage paper, radius of 50mm.
@@ -613,13 +613,13 @@ for sub in $(ls ${rawDir}); do
 		#d=2r=2*50=100
 		#pi=3.14159
 
-		    cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_deg.par | awk -v pi=3.14159 -v d=100 '{print (((d*pi)/360)*$1) " " (((d*pi)/360)*$2) " " (((d*pi)/360)*$3) " " $4 " " $5 " " $6}' > ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_mm.par
+		    cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_deg.par | awk -v pi=3.14159 -v d=100 '{print (((d*pi)/360)*$1) " " (((d*pi)/360)*$2) " " (((d*pi)/360)*$3) " " $4 " " $5 " " $6}' > ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_mm.par
 
 
 	    #Cut motion parameter file into 6 distinct TR parameter files
 		    for i in 1 2 3 4 5 6
 		    do
-			cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par | awk -v var=${i} '{print $var}' > ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mc${i}.par
+			cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par | awk -v var=${i} '{print $var}' > ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mc${i}.par
 		    done
 
 	 ##Need to create the absolute and relative displacement RMS measurement files
@@ -628,24 +628,24 @@ for sub in $(ls ${rawDir}); do
 		#where R=radius of spherical ROI = 80mm used in rmsdiff; theta_x, theta_y, theta_z are the three rotation angles from the .par file; and transx, transy, transz are the three translations from the .par file.
 
 	    #Absolute Displacement
-		    cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par | awk '{print (sqrt(0.2*80^2*((cos($1)-1)^2+(sin($1))^2 + (cos($2)-1)^2 + (sin($2))^2 + (cos($3)-1)^2 + (sin($3)^2)) + $4^2+$5^2+$6^2))}' >> ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_abs.rms
+		    cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par | awk '{print (sqrt(0.2*80^2*((cos($1)-1)^2+(sin($1))^2 + (cos($2)-1)^2 + (sin($2))^2 + (cos($3)-1)^2 + (sin($3)^2)) + $4^2+$5^2+$6^2))}' >> ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_abs.rms
 
 	    #Relative Displacement
 	    #Create the relative displacement .par file from the input using AFNI's 1d_tool.py to first calculate the derivatives
-		    1d_tool.py -infile ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par -set_nruns 1 -derivative -write ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_deriv.par
-		    cat ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_deriv.par | awk '{print (sqrt(0.2*80^2*((cos($1)-1)^2+(sin($1))^2 + (cos($2)-1)^2 + (sin($2))^2 + (cos($3)-1)^2 + (sin($3)^2)) + $4^2+$5^2+$6^2))}' >> ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_rel.rms
+		    1d_tool.py -infile ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par -set_nruns 1 -derivative -write ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_deriv.par
+		    cat ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_deriv.par | awk '{print (sqrt(0.2*80^2*((cos($1)-1)^2+(sin($1))^2 + (cos($2)-1)^2 + (sin($2))^2 + (cos($3)-1)^2 + (sin($3)^2)) + $4^2+$5^2+$6^2))}' >> ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_rel.rms
 
 
 	    #Create images of the motion correction (translation, rotations, displacement), mm and radians
 	      #switched from "MCFLIRT estimated...." title
-		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par -t '3dvolreg estimated rotations (radians)' -u 1 --start=1 --finish=3 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}${scan}/motion/rot.png
-		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg.par -t '3dvolreg estimated translations (mm)' -u 1 --start=4 --finish=6 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}${scan}/motion/trans.png
-		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_mm.par -t '3dvolreg estimated rotations (mm)' -u 1 --start=1 --finish=3 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}${scan}/motion/rot_mm.png
-		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_mm.par -t '3dvolreg estimated rotations and translations (mm)' -u 1 --start=1 --finish=6 -a "x(rot),y(rot),z(rot),x(trans),y(trans),z(trans)" -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}${scan}/motion/rot_trans.png
-		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_abs.rms,${preProcDataDir}/sub${name}/${cond}${scan}/motion/mcImg_rel.rms -t '3dvolreg estimated mean displacement (mm)' -u 1 -w 800 -h 300 -a absolute,relative -o ${preProcDataDir}/sub${name}/${cond}${scan}/motion/disp.png
+		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par -t '3dvolreg estimated rotations (radians)' -u 1 --start=1 --finish=3 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/rot.png
+		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg.par -t '3dvolreg estimated translations (mm)' -u 1 --start=4 --finish=6 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/trans.png
+		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_mm.par -t '3dvolreg estimated rotations (mm)' -u 1 --start=1 --finish=3 -a x,y,z -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/rot_mm.png
+		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_mm.par -t '3dvolreg estimated rotations and translations (mm)' -u 1 --start=1 --finish=6 -a "x(rot),y(rot),z(rot),x(trans),y(trans),z(trans)" -w 800 -h 300 -o ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/rot_trans.png
+		    fsl_tsplot -i ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_abs.rms,${preProcDataDir}/sub${name}/${cond}/${scan}/motion/mcImg_rel.rms -t '3dvolreg estimated mean displacement (mm)' -u 1 -w 800 -h 300 -a absolute,relative -o ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/disp.png
 		    
-		    mv ${preProcDataDir}/sub${name}/${cond}${scan}/motion/disp.png ${preProcDataDir}/sub${name}/${cond}${scan}/motion/${scan}_${name}_disp.png 
-		    cp ${preProcDataDir}/sub${name}/${cond}${scan}/motion/${scan}_${name}_disp.png ${preProcDataDir}/Func_Motion_Check/
+		    mv ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/disp.png ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/${scan}_${cond}_${name}_disp.png 
+		    cp ${preProcDataDir}/sub${name}/${cond}/${scan}/motion/${scan}_${cond}_${name}_disp.png ${preProcDataDir}/Func_Motion_Check/
 		fi
 
 	#Finished with getting motion parameters for functional data
@@ -653,7 +653,7 @@ for sub in $(ls ${rawDir}); do
 
 		
 
-		echo "FINISHED ${scan} for sub${name}" >> preprocessing.log
+		echo "FINISHED ${scan} for ${cond}_sub${name}" >> preprocessing.log
 		#Done with the particilar scan for the subject.
 	done
 
@@ -661,7 +661,7 @@ for sub in $(ls ${rawDir}); do
     echo "updating the log"
     #I honestly don't understand sed very well, but this should replace the last field, the done? column, with a 1 for the subject
     sed -ie 's/\('"$name"'\)\(,.*,\).*/\1\21/' tmp_scanLog.csv
-    echo "FINISHED sub${name}" >> preprocessing.log
+    echo "FINISHED ${cond}_sub${name}" >> preprocessing.log
 
 
 
