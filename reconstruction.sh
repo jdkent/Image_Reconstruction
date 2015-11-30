@@ -7,6 +7,8 @@
 	#FSL
 	#dcm2niix
 	#freesurfer
+#3) scanlog.csv has to be a faithful recreation of all the folders in the raw data directory
+#4) In scanvol.csv, if you have multiple scans with the same name (but different number volumes) that you want to preprocess, place a dash(-) after the name and label it whatever specific name you wish
 
 
 
@@ -34,7 +36,7 @@ function printCommandLine {
     echo "        VOLUMES is the expected number of volumes for that scan (i.e. 31,180, etc)"
     echo -e "\n"
     echo "-S    An optional list for which scans to reconstruct, otherwise all scans will be reconstructed"
-    echo "      The list must be enclosed by double quotes && the scan types you use must exist in your scanVol.csv"
+    echo "      The list must be enclosed by double quotes, be space delimited && the scan types you use must exist in your scanVol.csv"
     echo -e "\n"
     echo "        If you have questions/comments, please contact james-kent@uiowa.edu"
     exit 1
@@ -149,7 +151,7 @@ for sub in $(ls ${rawDir}); do
     name=$(awk -F"," '($2=="'"${sub}"'") {print $1}' tmp_scanLog.csv)
     #list the condition(s) the subject scans are for (i.e. Active/pre)
    
-    
+    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv)
     echo "${cond}_sub${name} is being converted from directory ${sub} in ${rawDir}" >> preprocessing.log
     #see if subject has already been run
     if [[ ${clobber} -eq 1 ]]; then
@@ -166,7 +168,7 @@ for sub in $(ls ${rawDir}); do
 	1)
 	    #the condition(s) that has already been completed.
 	    #maybe print wrong condition (and/or not complete condition) if a subject has more than 2 scans.
-	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv)
+	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/')
 	    echo "${sub}, which corresponds to ${name} for condition ${cond}, has already been preprocessed"
 	    echo "Processed: YES" >> preprocessing.log
 	    echo "Skipping sub${sub}" >> preprocessing.log
@@ -174,7 +176,7 @@ for sub in $(ls ${rawDir}); do
 	    ;;
 	0)
 	    #probably dont need '&& ($(\NF)==0)', but I am using it as a double check
-	    cond=$(awk -F"," '($2=="'"${sub}"'") && ($(NF)==0) {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv)
+	    cond=$(awk -F"," '($2=="'"${sub}"'") {for (i=3; i < NF; i++) print $i}' tmp_scanLog.csv | tr '\n' '/')
 	    echo "running ${sub} which corresponds to ${cond}_sub${name}"
 	    echo "Processed: NO" >> preprocessing.log
 	    echo "Processing ${cond}_sub${name}" >> preprocessing.log 
@@ -198,8 +200,8 @@ for sub in $(ls ${rawDir}); do
 
 		#check to see if the reconstructed scan already exists
 		#Default behavior is to skip the scan if the user does not provide input
-		
-		if [ -e ${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz ]; then
+		echo "this is the condition: ${cond}"
+		if [ -e "${preProcDataDir}/sub${name}/${cond}/${scan}/${cond}_sub${name}_${scan}.nii.gz" ]; then
 		    echo "${scan} exists for ${cond}_sub${name}, do you want to overwrite? yes/no"
 		    read -t 10 ans
 		    if [ "${ans}" == "yes" ]; then
@@ -674,7 +676,7 @@ for scan in ${scans}; do
     if [ -e ${preProcDataDir}/slicesdir_${scan} ]; then
 	rm -rf ${preProcDataDir}/slicesdir_${scan} 
     fi
-    slicesdir ${preProcDataDir}/sub*/*/${scan}/*_${scan}_RPI.nii.gz
+    slicesdir $(find ${preProcDataDir} -name "*_${scan}_RPI.nii.gz")
     mv slicesdir slicesdir_${scan}
     mv -f slicesdir_${scan} ${preProcDataDir}
 done
